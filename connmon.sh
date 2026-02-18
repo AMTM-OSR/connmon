@@ -11,7 +11,7 @@
 ##      Forked from https://github.com/jackyaz/connmon      ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2025-Dec-16
+# Last Modified: 2026-Feb-18
 #-------------------------------------------------------------
 
 ##############        Shellcheck directives      #############
@@ -36,9 +36,9 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="connmon"
-readonly SCRIPT_VERSION="v3.0.10"
-readonly SCRIPT_VERSTAG="25121620"
-SCRIPT_BRANCH="master"
+readonly SCRIPT_VERSION="v3.0.11"
+readonly SCRIPT_VERSTAG="26021800"
+SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
 readonly SCRIPT_WEBPAGE_DIR="$(readlink -f /www/user)"
@@ -74,6 +74,9 @@ readonly curlErr3RegExp="$curlErr1RegExp|$curlErr2RegExp"
 readonly curlOutLogFile="/tmp/var/tmp/temp_${SCRIPT_NAME}_curl_OUT.LOG"
 readonly curlErrLogFile="/tmp/var/tmp/temp_${SCRIPT_NAME}_curl_ERR.LOG"
 readonly tmpCurlSEPstr="-------------------------------------------------------"
+
+# To support automatic script updates from AMTM #
+doScriptUpdateFromAMTM=true
 
 # For daily CRON job to trim database #
 readonly defTrimDB_Hour=3
@@ -300,7 +303,8 @@ Update_Version()
 			Print_Output true "New version of $SCRIPT_NAME available - $serverver" "$PASS"
 			changelog="$(curl -fsL --retry 4 --retry-delay 5 "$SCRIPT_REPO/CHANGELOG.md" | sed -n "/$serverver"'/,/##/p' | head -n -1 | sed 's/## //')"
 			printf "${BOLD}${UNDERLINE}Changelog\\n${CLEARFORMAT}%s\\n\\n" "$changelog"
-		elif [ "$isupdate" = "md5" ]; then
+		elif [ "$isupdate" = "md5" ]
+		then
 			Print_Output true "MD5 hash of $SCRIPT_NAME does not match - hotfix available - $serverver" "$PASS"
 		fi
 
@@ -363,6 +367,23 @@ Update_Version()
 		fi
 		exit 0
 	fi
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2026-Feb-18] ##
+##-------------------------------------##
+ScriptUpdateFromAMTM()
+{
+    if ! "$doScriptUpdateFromAMTM"
+    then
+        printf "Automatic script updates via AMTM are currently disabled.\n\n"
+        return 1
+    fi
+    if [ $# -gt 0 ] && [ "$1" = "check" ]
+    then return 0
+    fi
+    Update_Version force unattended
+    return "$?"
 }
 
 ##----------------------------------------##
@@ -6352,7 +6373,7 @@ then
 fi
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Dec-11] ##
+## Modified by Martinski W. [2026-Feb-18] ##
 ##----------------------------------------##
 case "$1" in
 	install)
@@ -6578,6 +6599,11 @@ case "$1" in
 	forceupdate)
 		Update_Version force
 		exit 0
+	;;
+	amtmupdate)
+		shift
+		ScriptUpdateFromAMTM "$@"
+		exit "$?"
 	;;
 	postupdate)
 		Create_Dirs
