@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.0.11
+Updated on 2026-Feb-18
+*   NEW: Added code to support automatic add-on updates from AMTM.
+
 ## v3.0.10
 Updated on 2025-Dec-21
 *   FIXED: Bug fix in a CLI shell script function to get the full value of notification parameters from the configuration file.
