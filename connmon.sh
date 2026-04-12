@@ -11,7 +11,7 @@
 ##      Forked from https://github.com/jackyaz/connmon      ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2026-Feb-18
+# Last Modified: 2026-Apr-11
 #-------------------------------------------------------------
 
 ##############        Shellcheck directives      #############
@@ -36,9 +36,9 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="connmon"
-readonly SCRIPT_VERSION="v3.0.11"
-readonly SCRIPT_VERSTAG="26021800"
-SCRIPT_BRANCH="master"
+readonly SCRIPT_VERSION="v3.0.12"
+readonly SCRIPT_VERSTAG="26041103"
+SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
 readonly SCRIPT_WEBPAGE_DIR="$(readlink -f /www/user)"
@@ -132,6 +132,9 @@ isInteractive=false
 [ -t 0 ] && ! tty | grep -qwi "NOT" && isInteractive=true
 
 ### End of output format variables ###
+
+# Workaround for Entware ELF binaries compiled with RUNPATH #
+unset LD_LIBRARY_PATH
 
 # Give priority to built-in binaries #
 export PATH="/bin:/usr/bin:/sbin:/usr/sbin:$PATH"
@@ -456,32 +459,45 @@ Update_File()
 
 Validate_Number()
 {
-	if [ "$1" -eq "$1" ] 2>/dev/null; then
+	if [ "$1" -eq "$1" ] 2>/dev/null
+	then
 		return 0
 	else
 		return 1
 	fi
 }
 
-Validate_IP()
+##----------------------------------------##
+## Modified by Martinski W. [2026-Mar-27] ##
+##----------------------------------------##
+Validate_IPv4_Address()
 {
-	if expr "$1" : '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null; then
-		for i in 1 2 3 4; do
-			if [ "$(echo "$1" | cut -d. -f$i)" -gt 255 ]; then
-				Print_Output false "Octet $i ($(echo "$1" | cut -d. -f$i)) - is invalid, must be less than 255" "$ERR"
+	local theOctet
+	if expr "$1" : '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null
+	then
+		for i in 1 2 3 4
+		do
+			theOctet="$(echo "$1" | cut -d'.' -f$i)"
+			if [ "$theOctet" -gt 255 ]
+			then
+				echo
+				Print_Output false "Octet $i ($theOctet) is invalid. It must be less than 256." "$ERR"
 				return 1
 			fi
 		done
 	else
-		Print_Output false "$1 - is not a valid IPv4 address, valid format is 1.2.3.4" "$ERR"
+		echo
+		Print_Output false "'${1}' is not a valid IPv4 address. Valid format is 11.22.33.44" "$ERR"
 		return 1
 	fi
 }
 
-Validate_Domain()
+Validate_DomainName()
 {
-	if ! nslookup "$1" >/dev/null 2>&1; then
-		Print_Output false "$1 cannot be resolved by nslookup, please ensure you enter a valid domain name" "$ERR"
+	if ! nslookup "$1" >/dev/null 2>&1
+	then
+		echo
+		Print_Output false "'${1}' cannot be resolved by nslookup. Please enter a valid domain name." "$ERR"
 		return 1
 	else
 		return 0
@@ -857,11 +873,68 @@ Conf_Exists()
 	fi
 }
 
+##-------------------------------------##
+## Added by Martinski W. [2026-Mar-27] ##
+##-------------------------------------##
+_Get_PingServer_IPv4_Address_()
+{
+	local retCode
+	while true
+	do
+		ScriptHeader
+		printf " ${BOLD}Current ping server destination: ${GRNct}%s${CLRct}\n\n" "$(PingServer check)"
+		printf " ${BOLD}Please enter an IP address (${GRNct}e${CLRct}=Go back):${CLRct}  "
+		read -r ipv4Option
+		if [ -z "$ipv4Option" ] || [ "$ipv4Option" = "e" ]
+		then
+			retCode=1
+			break
+		elif ! Validate_IPv4_Address "$ipv4Option"
+		then
+			PressEnter
+		else
+			sed -i 's/^PINGSERVER=.*$/PINGSERVER='"$ipv4Option"'/' "$SCRIPT_CONF"
+			retCode=0
+			break
+		fi
+	done
+	return "$retCode"
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2026-Mar-27] ##
+##-------------------------------------##
+_Get_PingServer_DomainName_()
+{
+	local retCode
+	while true
+	do
+		ScriptHeader
+		printf " ${BOLD}Current ping server destination: ${GRNct}%s${CLRct}\n\n" "$(PingServer check)"
+		printf " ${BOLD}Please enter a domain name (${GRNct}e${CLRct}=Go back):${CLRct}  "
+		read -r domainOption
+		if [ -z "$domainOption" ] || [ "$domainOption" = "e" ]
+		then
+			retCode=1
+			break
+		elif ! Validate_DomainName "$domainOption"
+		then
+			PressEnter
+		else
+			sed -i 's/^PINGSERVER=.*$/PINGSERVER='"$domainOption"'/' "$SCRIPT_CONF"
+			retCode=0
+			break
+		fi
+	done
+	return "$retCode"
+}
+
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Dec-15] ##
+## Modified by Martinski W. [2026-Mar-27] ##
 ##----------------------------------------##
 PingServer()
 {
+	local exitOK
 	case "$1" in
 		update)
 			exitOK=false
@@ -876,45 +949,18 @@ PingServer()
 				printf "  ${GRNct}2${CLRct}. Enter Domain Name\n"
 				printf "  ${GRNct}e${CLRct}. Go back\n"
 				printf "\n${BOLD}Choose an option:${CLRct}  "
-				read -r pingoption
+				read -r pingOption
 
-				case "$pingoption" in
-					1)
-						while true
-						do
-							printf "\n${BOLD}Please enter an IP address (e=Exit):${CLRct}  "
-							read -r ipoption
-							if [ "$ipoption" = "e" ]
-							then
-								break
-							elif Validate_IP "$ipoption"
-							then
-								sed -i 's/^PINGSERVER=.*$/PINGSERVER='"$ipoption"'/' "$SCRIPT_CONF"
-								exitOK=true ; break
-							fi
-						done
-					;;
-					2)
-						while true
-						do
-							printf "\n${BOLD}Please enter a domain name (e=Exit):${CLRct}  "
-							read -r domainoption
-							if [ "$domainoption" = "e" ]
-							then
-								break
-							elif Validate_Domain "$domainoption"
-							then
-								sed -i 's/^PINGSERVER=.*$/PINGSERVER='"$domainoption"'/' "$SCRIPT_CONF"
-								exitOK=true ; break
-							fi
-						done
-					;;
+				case "$pingOption" in
+					1) _Get_PingServer_IPv4_Address_ && exitOK=true
+					   ;;
+					2) _Get_PingServer_DomainName_ && exitOK=true
+					   ;;
 					e) break
-					;;
-					*)
-						printf "\n${BOLD}${ERR}Please choose a valid option.${CLRct}\n\n"
-						PressEnter
-					;;
+					   ;;
+					*) printf "\n${BOLD}${ERR}Please choose a valid option.${CLRct}\n\n"
+					   PressEnter
+					   ;;
 				esac
 			done
 			echo
@@ -941,7 +987,7 @@ PingDuration()
 				ScriptHeader
 				printf " ${BOLD}Current number of seconds for ping tests: ${GRNct}${pingSecs}${CLRct}\n\n"
 				printf " ${BOLD}Please enter the maximum number of seconds\n"
-				printf " to run the ping tests [${GRNct}${MINvalue}-${MAXvalue}${CLRct}] (e=Exit):${CLRct}  "
+				printf " to run the ping tests [${GRNct}${MINvalue}-${MAXvalue}${CLRct}] (${GRNct}e${CLRct}=Go back):${CLRct}  "
 				read -r pingdur_choice
 				if [ -z "$pingdur_choice" ] && \
 				   echo "$pingSecs" | grep -qE "^([1-9][0-9])$" && \
@@ -998,7 +1044,7 @@ DaysToKeep()
 				ScriptHeader
 				printf " ${BOLD}Current number of days to keep data: ${GRNct}${daysToKeep}${CLRct}\n\n"
 				printf " ${BOLD}Please enter the maximum number of days\n"
-				printf " to keep the data for [${GRNct}${MINvalue}-${MAXvalue}${CLRct}] (e=Exit):${CLRct}  "
+				printf " to keep the data for [${GRNct}${MINvalue}-${MAXvalue}${CLRct}] (${GRNct}e${CLRct}=Go back):${CLRct}  "
 				read -r daystokeep_choice
 				if [ -z "$daystokeep_choice" ] && \
 				   echo "$daysToKeep" | grep -qE "^([1-9][0-9]{1,2})$" && \
@@ -1055,7 +1101,7 @@ LastXResults()
 				ScriptHeader
 				printf " ${BOLD}Current number of results to display: ${GRNct}${lastXResults}${CLRct}\n\n"
 				printf " ${BOLD}Please enter the maximum number of results\n"
-				printf " to display in the WebUI [${GRNct}${MINvalue}-${MAXvalue}${CLRct}] (e=Exit):${CLRct}  "
+				printf " to display in the WebUI [${GRNct}${MINvalue}-${MAXvalue}${CLRct}] (${GRNct}e${CLRct}=Go back):${CLRct}  "
 				read -r lastx_choice
 				if [ -z "$lastx_choice" ] && \
 				   echo "$lastXResults" | grep -qE "^([1-9][0-9]{0,2})$" && \
@@ -2597,10 +2643,15 @@ Generate_LastXResults()
 
 	sqlProcSuccess=true
 	{
-	   echo ".mode csv"
-	   echo ".output /tmp/connmon-lastx.csv"
-	   echo "PRAGMA temp_store=1;"
-	   echo "SELECT [Timestamp],[Ping],[Jitter],[LineQuality],[PingTarget],[PingDuration] FROM connstats ORDER BY [Timestamp] DESC LIMIT $(LastXResults check);"
+	    echo ".mode csv"
+	    echo ".output /tmp/connmon-lastx.csv"
+	    echo "PRAGMA temp_store=1;"
+	    echo "SELECT [Timestamp],"
+	    echo "printf('%.3f', Ping) AS PingValue,"
+	    echo "printf('%.3f', Jitter) AS JitterValue,"
+	    echo "printf('%.2f', LineQuality) AS LineQualityValue,"
+	    echo "[PingTarget],[PingDuration]"
+	    echo "FROM connstats ORDER BY [Timestamp] DESC LIMIT $(LastXResults check);"
 	} > /tmp/connmon-lastx.sql
 	_ApplyDatabaseSQLCmds_ /tmp/connmon-lastx.sql glx1
 	rm -f /tmp/connmon-lastx.sql
@@ -2962,17 +3013,17 @@ Email_Server()
 	SMTP=""
 	while true
 	do
-		printf "\\n${BOLD}Enter SMTP Server:${CLEARFORMAT}  "
+		printf "\n${BOLD}Enter SMTP Server:${CLRct}  "
 		read -r SMTP
 		if [ "$SMTP" = "e" ]
 		then
 			SMTP=""
 			break
-		elif ! Validate_Domain "$SMTP"
+		elif ! Validate_DomainName "$SMTP"
 		then
-			printf "\\n${ERR}Domain cannot be resolved by nslookup, please ensure you enter a valid domain name${CLEARFORMAT}\\n"
+			printf "\n${ERR}Domain cannot be resolved by nslookup. Please enter a valid domain name.${CLRct}\n"
 		else
-			printf "${BOLD}${WARN}Is this correct? (y/n):${CLEARFORMAT}  "
+			printf "${BOLD}${WARN}Is this correct? (y/n):${CLRct}  "
 			read -r CONFIRM_INPUT
 			case "$CONFIRM_INPUT" in
 				y|Y)
@@ -5774,7 +5825,7 @@ Menu_EditCronSchedule()
 		printf " ${BOLD}Please enter the DAYS of the week when to run the ping tests.\n"
 		printf " [${GRNct}0-6${CLRct}], ${GRNct}0${CLRct}=Sunday, ${GRNct}6${CLRct}=Saturday,"
 		printf " ${GRNct}*${CLRct}=Every day, or comma-separated days.${CLRct}"
-		printf "\n\n ${BOLD}Enter DAYS of the week (${GRNct}e${CLRct}=Exit)${CLRct}:  "
+		printf "\n\n ${BOLD}Enter DAYS of the week (${GRNct}e${CLRct}=Go back)${CLRct}:  "
 		read -r day_choice
 
 		if [ "$day_choice" = "e" ]
