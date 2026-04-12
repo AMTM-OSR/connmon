@@ -38,7 +38,7 @@
 readonly SCRIPT_NAME="connmon"
 readonly SCRIPT_VERSION="v3.0.12"
 readonly SCRIPT_VERSTAG="26041103"
-SCRIPT_BRANCH="develop"
+SCRIPT_BRANCH="master"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
 readonly SCRIPT_WEBPAGE_DIR="$(readlink -f /www/user)"
