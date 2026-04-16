@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.0.13
+Updated on 2026-Apr-15
+*   IMPROVED: Modified code to ensure that the F/W built-in hook scripts used by the add-on have executable permissions.
+
 ## v3.0.12
 Updated on 2026-Apr-11
 *   FIXED: Added "unset LD_LIBRARY_PATH" line as a workaround due to the latest Entware binaries using the RUNPATH embedded library search path mechanism instead of the previous RPATH method.
