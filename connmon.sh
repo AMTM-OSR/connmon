@@ -11,7 +11,7 @@
 ##      Forked from https://github.com/jackyaz/connmon      ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2026-Jun-24
+# Last Modified: 2026-Jul-25
 #-------------------------------------------------------------
 
 ##############        Shellcheck directives      #############
@@ -37,7 +37,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="connmon"
 readonly SCRIPT_VERSION="v3.0.13"
-readonly SCRIPT_VERSTAG="26062400"
+readonly SCRIPT_VERSTAG="26072501"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/$SCRIPT_NAME/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -137,8 +137,14 @@ readonly WarnBYLWct="\e[30;103m"
 readonly WarnIMGNct="\e[45m"
 readonly WarnBMGNct="\e[30;105m"
 readonly menuSepStr="${BOLD}##############################################################${CLRct}"
-isInteractive=false
-[ -t 0 ] && ! tty | grep -qwi "NOT" && isInteractive=true
+
+if [ -t 0 ] && ! tty | grep -qwi "NOT"
+then
+    readonly isInteractive=true
+    readonly gSavedSTTY="$(stty -g)"
+else
+    readonly isInteractive=false
+fi
 
 ### End of output format variables ###
 
@@ -170,7 +176,7 @@ Print_Output()
 		esac
 		logger -t "${SCRIPT_NAME}_[$$]" -p $prioNum "$2"
 	fi
-	printf "${BOLD}${3}${2}${CLEARFORMAT}\n\n"
+	printf "${BOLD}${3}%s${CLRct}\n\n" "$2"
 }
 
 Firmware_Version_Check()
@@ -317,7 +323,7 @@ Update_Version()
 			printf "${BOLD}${UNDERLINE}Changelog\\n${CLEARFORMAT}%s\\n\\n" "$changelog"
 		elif [ "$isupdate" = "md5" ]
 		then
-			Print_Output true "MD5 hash of $SCRIPT_NAME does not match - hotfix available - $serverver" "$PASS"
+			Print_Output true "MD5 hash of $SCRIPT_NAME does NOT match - hotfix available - $serverver" "$PASS"
 		fi
 
 		if [ "$isupdate" != "false" ]
@@ -483,12 +489,14 @@ Validate_IPv4_Address()
 {
 	if [ $# -eq 0 ] || [ -z "$1" ]
 	then
-		Print_Output false "\n IPv4 address CANNOT be empty." "$ERR"
+		echo
+		Print_Output false " IPv4 address CANNOT be empty." "$ERR"
 		return 1
 	fi
 	if echo "$1" | grep -qE "[^0-9.]"
 	then
-		Print_Output false "\n The argument '${1}' is NOT a valid IPv4 address." "$ERR"
+		echo
+		Print_Output false " The string '${1}' is NOT a valid IPv4 address." "$ERR"
 		return 1
 	fi
 	local theOctet
@@ -496,14 +504,15 @@ Validate_IPv4_Address()
 	if echo "$1" | grep -qE "^${IPv4addrs_RegEx}$"
 	then return 0
 	fi
-	Print_Output false "\n '${1}' is NOT a valid IPv4 address. Valid format is 12.34.56.78" "$ERR"
+	echo
+	Print_Output false " '${1}' is NOT a valid IPv4 address. Valid format is 12.34.56.78" "$ERR"
 
 	for indx in 1 2 3 4
 	do
 		theOctet="$(echo "$1" | cut -d'.' -f$indx)"
 		if [ -n "$theOctet" ] && [ "$theOctet" -gt 255 ]
 		then
-			Print_Output false "\n Octet $indx ($theOctet) is INVALID. It must be less than 256." "$ERR"
+			Print_Output false " Octet $indx ($theOctet) is INVALID. It must be less than 256." "$ERR"
 			break
 		fi
 	done
@@ -515,7 +524,7 @@ Validate_DomainName()
 	if ! nslookup "$1" >/dev/null 2>&1
 	then
 		echo
-		Print_Output false "'${1}' cannot be resolved by nslookup. Please enter a valid Domain Name." "$ERR"
+		Print_Output false " '${1}' cannot be resolved by nslookup. Please enter a valid Domain Name." "$ERR"
 		return 1
 	else
 		return 0
@@ -2901,7 +2910,7 @@ PressEnter()
 }
 
 ##-------------------------------------##
-## Added by Martinski W. [2026-May-08] ##
+## Added by Martinski W. [2026-May-24] ##
 ##-------------------------------------##
 _ConfirmYESorNO_()
 {
@@ -2911,10 +2920,10 @@ _ConfirmYESorNO_()
 	local promptStr  theAnswer
 
 	if [ $# -eq 0 ] || [ -z "$1" ]
-	then promptStr=" [yY|nN]?  "
-	else promptStr="$1 [yY|nN]?  "
+	then promptStr=" [yY|nN]?"
+	else promptStr=" $1 [yY|nN]?"
 	fi
-	printf "$promptStr" ; read -r theAnswer
+	printf "$promptStr  " ; read -r theAnswer
 	[ -z "$theAnswer" ] && theAnswer="NO"
 	if echo "$theAnswer" | grep -qE "^([Yy](es)?|YES)$"
 	then echo "OK" ; return 0
